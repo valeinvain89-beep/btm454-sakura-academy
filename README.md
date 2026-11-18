@@ -1,25 +1,36 @@
 # Sakura Tech Academy - BTM454 Technology Management
 
-Source snapshot of **Sakura Tech Academy**, a pixel-style, Japanese-themed learning game built for **BTM454 Technology Management** (UiTM, degree level). The app was built on Base44 and this repository is a manual copy of its key source files.
+Source of **Sakura Tech Academy**, a pixel-style, Japanese-themed learning game built for **BTM454 Technology Management** (UiTM, classes 2B and 2C).
 
 **Live app:** https://btm454-sakura-academy5-azvic89.base44.app
 
 ## Status of the game at the time of this snapshot
 - **Chapter 5 - IT Guardian** is playable (five missions covering resource strategy, governance, IT service management and cybersecurity).
-- **Chapter 6 (Emerging Technologies)** and **Chapter 7 (Ethics and Social Responsibility)** are planned and not yet built.
+- **Chapter 6 (Emerging Technologies)** and **Chapter 7 (Ethics and Social Responsibility)** are planned and not yet playable.
 - Progress is saved per browser as a guest, and the game has a Learning journal.
 
 ## What is in this repository
 | Path | Contents |
 |---|---|
-| `src/game/` | Game code and content: `Academy.jsx`, `Village.jsx`, `content.js`, `pixel-world.js`, `save-functions.js`, styles |
-| `src/routes/` | App routes (game entry page and sign-in related pages) |
-| `src/router.jsx`, `src/server.js`, `src/start.js`, `src/index.css` | App shell |
-| Config files | `package.json`, `vite.config.js`, `tailwind.config.js`, `postcss.config.js`, `eslint.config.js`, `jsconfig.json`, `components.json`, `wrangler.jsonc` |
+| `src/game/` | Game code and content: Academy, Village, content, pixel world, save functions and styles |
+| `src/routes/` | App routes (game entry page and sign-in pages) |
+| `src/components/`, `src/lib/`, `src/hooks/`, `src/api/` | Shared UI components, helpers, hooks and the Base44 client |
+| `scripts/` | Smoke tests (`npm run test:game`, `npm run test:world`) |
+| `base44/`, config files | Base44, Vite, Tailwind, ESLint and Cloudflare settings |
 
-## Not included
-This is a partial copy. These parts of the Base44 project were left out: `src/components/ui` (generic UI components), `src/hooks`, `src/lib`, `src/api`, `scripts`, `base44`, `agent`, `.agents`, and Base44-internal files (`AGENTS.md`, `CLAUDE.md`, `skills-lock.json`). Because of this, the repository will **not build or run on its own**. The `test:game` and `test:world` scripts in `package.json` refer to files in the omitted `scripts` folder.
+## Build
+A GitHub Actions workflow (`.github/workflows/build.yml`) runs `npm install` and `npm run build` on every push to main. The build passes.
 
-## Notes
-- The files were copied by hand from the Base44 code view and checked by size and checksum. The repository is not synced with Base44, so it can fall behind the live app.
-- Course: BTM454 Technology Management (classes 2B and 2C).
+Locally:
+```
+npm install
+npm run build
+```
+The `.npmrc` sets `legacy-peer-deps=true` because two @tanstack/ai packages have a peer-version conflict.
+
+## Limits
+- Sign-in and saved progress depend on the Base44 backend (`@base44/sdk`), so the game does not fully run from this repository alone. Use the live app to play.
+- This is a manual snapshot copied from Base44, not a live sync. The Base44 skill folders (`.agents`, `agent`) and a package-lock file are not included.
+
+## Course
+BTM454 Technology Management - classes 2B and 2C.
