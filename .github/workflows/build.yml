@@ -1,0 +1,26 @@
+name: build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Unpack source bundle
+        run: |
+          node -e "const fs=require('fs'),z=require('zlib'),p=require('path');const o=JSON.parse(z.gunzipSync(Buffer.from(fs.readFileSync('bundle/files.b64','utf8').trim(),'base64')).toString());for(const [f,c] of Object.entries(o)){fs.mkdirSync(p.dirname(f),{recursive:true});fs.writeFileSync(f,c)}console.log('files',Object.keys(o).length)"
+      - name: Commit unpacked files
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || (git commit -m "Unpack source files from bundle" && git push)
+      - run: npm install
+      - run: npm run build
