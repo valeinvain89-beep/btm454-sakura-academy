@@ -1,172 +1,72 @@
-import {useEffect,useRef,useState} from 'react';
-import {Maximize2,Minimize2,Volume2,VolumeX,Map,Compass,BookOpen,ArrowUp,ArrowDown,ArrowLeft,ArrowRight} from 'lucide-react';
-import {W,H,places,scrolls,makeArt,makeSprites,walkable,findPath} from './pixel-world';
-export default function Village({onVisit,active,done,compact=false,reduced=false,worldState,onWorldChange}){
- const host=useRef(null),live=useRef({onVisit,active,done,worldState,onWorldChange}),controls=useRef({x:0,y:0,interact:false,overview:false,recenter:false});
- const [error,setError]=useState(false),[loaded,setLoaded]=useState(false),[maximized,setMaximized]=useState(false),[near,setNear]=useState(-1),[tip,setTip]=useState('Follow the lanterns. Aiko is waiting at the Systems Dojo.'),[collected,setCollected]=useState(worldState?.scrolls?.length||0),[music,setMusic]=useState(false),[overview,setOverview]=useState(compact);
- const audio=useRef(null),timer=useRef(null);const [narrow,setNarrow]=useState(false);
- useEffect(()=>{const media=window.matchMedia('(max-width:700px)');const change=()=>setNarrow(media.matches);change();media.addEventListener('change',change);return()=>media.removeEventListener('change',change)},[]);
- useEffect(()=>{const t=setTimeout(()=>window.dispatchEvent(new Event('resize')),80);return()=>clearTimeout(t)},[maximized]);
- useEffect(()=>{live.current={onVisit,active,done,worldState,onWorldChange}},[onVisit,active,done,worldState,onWorldChange]);
- useEffect(()=>{if(!maximized)return;const prev=document.body.style.overflow;document.body.style.overflow='hidden';const close=e=>{if(e.key==='Escape')setMaximized(false)};document.addEventListener('keydown',close);return()=>{document.body.style.overflow=prev;document.removeEventListener('keydown',close)}},[maximized]);
- useEffect(()=>()=>{clearInterval(timer.current);audio.current?.close()},[]);
- const toggleMusic=()=>{
-  if(music){clearInterval(timer.current);audio.current?.suspend();setMusic(false);return}
-  const AC=window.AudioContext||window.webkitAudioContext;if(!AC){setTip('Sound is unavailable in this browser.');return}
-  const ctx=audio.current||(audio.current=new AC());ctx.resume();let beat=0;
-  const notes=[261.63,329.63,392,523.25,440,392,329.63,293.66,261.63,392,440,523.25,659.25,523.25,392,329.63];
-  const play=()=>{const now=ctx.currentTime,o=ctx.createOscillator(),g=ctx.createGain();o.type='triangle';o.frequency.value=notes[beat++%notes.length];g.gain.setValueAtTime(0,now);g.gain.linearRampToValueAtTime(.022,now+.03);g.gain.exponentialRampToValueAtTime(.001,now+.43);o.connect(g);g.connect(ctx.destination);o.start(now);o.stop(now+.46)};
-  play();timer.current=setInterval(play,440);setMusic(true)
+export const missions = [
+{ id:'restore', title:'Restore the Technology Centre', short:'Technology Centre', mentor:'Aiko · Systems lead', topic:'IT components & responsibilities', pages:'4–15', icon:'Monitor', intro:'Festival registration is slow. Buying new equipment before investigating could waste the village budget.', evidence:['The application server CPU is normal; the database disk is almost full.','Wi-Fi tests pass. Student records must be backed up before changes.','Administrators maintain systems; application developers change application code.'], steps:[
+{type:'match',prompt:'Assign each task to its most appropriate role.',items:['Monitor storage and manage backups','Repair a registration application defect','Coordinate user troubleshooting'],options:['System administrator','Application developer','Help-desk support'],correct:[0,1,2],explain:'Administration maintains infrastructure, developers change application code, and support coordinates user troubleshooting. Teams still collaborate.',delta:[6,0,-3,4]},
+{type:'choice',prompt:'Which evidence-led response best addresses the current bottleneck?',options:['Upgrade campus laptops because users report slowness','Verify backups, safely expand or reclaim database storage, then monitor','Upgrade Wi-Fi first because registration is accessed wirelessly'],correct:1,explain:'The evidence points to storage capacity. Verify recovery and address the identified bottleneck before purchasing unrelated hardware.',delta:[8,-8,-2,4]},
+{type:'choice',prompt:'The update works in testing. What should happen before a campus-wide release?',options:['Release to everyone once the technical test passes','Rely on the vendor default settings and postpone a rollback plan','Plan approval, rollback, user communication and a controlled release'],correct:2,explain:'A controlled release combines technical testing with change approval, recovery preparation and user readiness.',delta:[5,-2,-3,5]}]},
+{ id:'budget',title:'The Limited-Budget Challenge',short:'Resource Workshop',mentor:'Kenji · Finance partner',topic:'Resources, people & budgeting',pages:'19–23',icon:'Coins',intro:'You have 100 planning credits. Meet minimum operational needs while retaining a reserve. These costs are fictional teaching values.',evidence:['Infrastructure needs at least 25 credits to protect registration capacity.','Licences need 20; staff training needs 20; security and recovery need 20.','Reserve at least 5 credits. Spending all your money is not the goal.'],steps:[
+{type:'budget',prompt:'Allocate 100 planning credits. Meet all four minimums and keep a reserve of at least 5.',items:['Infrastructure','Software licences','Staff training','Security & recovery'],minimums:[25,20,20,20],explain:'One defensible plan is 30 / 20 / 20 / 20 with 10 held in reserve. Other allocations work if all minimums and the reserve are met. Credits here are independent of the village budget indicator.',delta:[7,-10,-5,6]},
+{type:'choice',prompt:'A cheap vendor offers incompatible software with no support. What should guide your comparison?',options:['Purchase price and the promised delivery date','Total cost, compatibility, support, security and business fit','Demonstration performance without checking integration requirements'],correct:1,explain:'Evaluate the lifecycle of the investment. Integration, support, training and operational risks can outweigh a low purchase price.',delta:[3,4,-2,3]},
+{type:'choice',prompt:'The team lacks recovery skills. What is the most sustainable response?',options:['Provide targeted practice, documentation and coverage planning','Assign all recovery work to one specialist to keep responsibilities simple','Prioritise equipment replacement and postpone staff practice'],correct:0,explain:'Human resources are part of IT capability. Training and shared knowledge reduce single-person dependency.',delta:[4,-3,-4,5]}]},
+{ id:'governance',title:'The Governance Council',short:'Council Hall',mentor:'Hana · Council chair',topic:'Alignment, policy & accountability',pages:'17–18',icon:'Landmark',intro:'A vendor proposes a fashionable new platform. The council wants evidence that the investment supports reliable student services.',evidence:['The strategic objective is dependable registration, not adopting technology for its own sake.','Academic users, IT staff, finance and relevant compliance staff have different concerns.','Approval authority and responsibility for ongoing monitoring must be explicit.'],steps:[
+{type:'choice',prompt:'What should the proposal demonstrate first?',options:['A clear organisational need, alternatives, costs, risks and success measures','That competitors have bought it','That it uses the newest technology'],correct:0,explain:'Governance connects investment decisions to organisational objectives and accountable oversight.',delta:[3,2,-3,6]},
+{type:'choice',prompt:'Who should help develop the access and data-handling policy?',options:['The vendor alone','Only the most senior technician','Relevant users, IT, management and legal/compliance stakeholders'],correct:2,explain:'Stakeholder participation helps policies reflect operational needs, responsibilities and applicable obligations.',delta:[2,-1,-5,6]},
+{type:'choice',prompt:'The policy is approved. Which arrangement best supports accountability?',options:['No review until a breach happens','Name decision owners, communicate responsibilities and schedule reviews','Let each team interpret it privately'],correct:1,explain:'Accountability requires clear authority, communication and ongoing monitoring. Policy development is not a one-time event.',delta:[3,0,-4,5]}]},
+{ id:'service',title:'Service Desk Under Pressure',short:'Service Desk',mentor:'Ren · Service coordinator',topic:'IT service management',pages:'24–27',icon:'Headphones',intro:'Requests arrive together. Examine impact, urgency and available evidence before assigning work.',evidence:['Ticket A: registration unavailable to 300 students; enrolment closes in one hour.','Ticket B: one lecturer requests a PDF application for next week.','Ticket C: a shared printer is offline; a working printer is nearby.','No current security incident is reported in this exercise.'],steps:[
+{type:'order',prompt:'Set the response order, highest priority first.',items:['A · Registration outage','B · Software request next week','C · Printer with workaround'],correct:[0,2,1],explain:'A has broad impact and an imminent deadline. C has a workaround; B has a later deadline. In real work, new evidence can change priorities.',delta:[8,0,0,7]},
+{type:'choice',prompt:'You restore registration, but the same fault has occurred three times. What should you do next?',options:['Close every record and forget the pattern','Investigate the underlying problem while maintaining service','Call each recurrence a new software request'],correct:1,explain:'Incident management restores service; problem management investigates causes and recurrence. Restoration alone does not establish a permanent fix.',delta:[5,-2,-3,4]},
+{type:'choice',prompt:'Which evidence best supports continual service improvement?',options:['An attractive dashboard with no baseline','The number of devices purchased','Resolution time, recurrence, service availability and user feedback against a baseline'],correct:2,explain:'Improvement needs meaningful service measures and feedback, rather than activity counts alone.',delta:[4,1,-2,4]}]},
+{ id:'security',title:'Festival-Day Disruption',short:'Security Gate',mentor:'Sora · Security lead',topic:'Cybersecurity & business continuity',pages:'29–38',icon:'ShieldCheck',intro:'A staff account shows unfamiliar logins and unexpected data access. Your job is to coordinate a proportionate response.',evidence:['Security logs indicate a potentially compromised staff account.','A tested backup and an incident response plan are available.','The response team must preserve evidence and use defined communication channels.','Notification obligations depend on the incident and applicable rules; consult the responsible team.'],steps:[
+{type:'choice',prompt:'What is the strongest initial response to the suspected compromise?',options:['Reset the password and restore access before investigating active sessions','Activate the response plan, validate scope and contain affected access while preserving evidence','Complete a full campus-wide audit before limiting the affected account'],correct:1,explain:'Use the incident response plan to coordinate investigation, containment and evidence preservation. Do not destroy evidence or assume the whole network is affected.',delta:[3,-4,-10,5]},
+{type:'order',prompt:'After containment, arrange this simplified recovery sequence.',items:['Restore verified clean service and validate it','Address the identified cause and validate the recovery source','Monitor, document lessons and improve controls'],correct:[1,0,2],explain:'For this simplified scenario, address the cause and verify the source, restore and validate service, then monitor and improve. Real response activities can overlap.',delta:[9,-3,-8,6]},
+{type:'choice',prompt:'How should you communicate during recovery?',options:['Announce full recovery after the server restarts, before validation','Wait for the final investigation report before any operational update','Give authorised, factual updates, known limitations and next steps through the response plan'],correct:2,explain:'Communication should be accurate, timely and assigned to responsible people. Avoid unverified assurances and assess any applicable reporting duties.',delta:[4,0,-3,7]}]}
+];
+export const preQuestions = [
+{prompt:'Registration is down for all students; a non-urgent software request also arrives. What is the strongest basis for prioritisation?',options:['First come, first served','Impact and urgency','The seniority of the requester'],correct:1,explain:'Consider how many people and services are affected and how soon action is needed.'},
+{prompt:'Before investing in an IT platform, what should be established?',options:['Its fit with organisational objectives','Its popularity alone','Its colour scheme'],correct:0,explain:'Business alignment provides a reason to invest and a basis for evaluating value.'},
+{prompt:'A staff account may be compromised. What should guide action?',options:['Deleting evidence','Waiting for public complaints','The incident response plan and verified evidence'],correct:2,explain:'A coordinated, evidence-led response supports containment and recovery.'}
+];
+export const postQuestions = [
+{prompt:'A payroll deadline is today and payroll is unavailable. A second request is for a cosmetic website change next month. What comes first?',options:['The cosmetic change','Payroll, based on impact and urgency','Whichever request is shortest'],correct:1,explain:'A critical service with an imminent deadline warrants prompt attention.'},
+{prompt:'A supplier offers a trendy tool. What makes the proposal defensible?',options:['Measurable organisational value, costs, alternatives and risk','A celebrity endorsement','A discount by itself'],correct:0,explain:'Evaluate the investment against an identified need and relevant constraints.'},
+{prompt:'A repeated outage is temporarily fixed. What should follow?',options:['Delete the service records','Assume it can never recur','Investigate causes, monitor service and improve controls'],correct:2,explain:'Restoration should be followed by investigation and evidence-led improvement.'}
+];
+export const initialState = () => ({version:1,started:false,mission:0,step:0,answers:{},reflections:{},drafts:{},pre:[],post:[],phase:'pre',world:{x:540,y:613,scrolls:[]},updatedAt:0});
+export function validSave(v) {
+ const record=o=>!!o&&typeof o==='object'&&!Array.isArray(o);
+ if(!record(v)||v.version!==1||typeof v.started!=='boolean'||!Number.isInteger(v.mission)||v.mission<0||v.mission>=5||!Number.isInteger(v.step)||v.step<0||v.step>=3||!['pre','missions','post','complete'].includes(v.phase)||!Number.isFinite(v.updatedAt))return false;
+ if(!record(v.answers)||!record(v.drafts)||!record(v.reflections))return false;
+ if(v.world!==undefined&&(!record(v.world)||!Number.isFinite(v.world.x)||!Number.isFinite(v.world.y)||v.world.x<0||v.world.x>1080||v.world.y<0||v.world.y>744||!Array.isArray(v.world.scrolls)||v.world.scrolls.length>5||v.world.scrolls.some(n=>!Number.isInteger(n)||n<0||n>=5)||new Set(v.world.scrolls).size!==v.world.scrolls.length))return false;
+ const valueOK=(key,value,draft=false)=>{
+  if(!/^[0-4]-[0-2]$/.test(key))return false;
+  const [mi,si]=key.split('-').map(Number),step=missions[mi].steps[si];
+  if(step.type==='choice')return Number.isInteger(value)&&value>=0&&value<step.options.length;
+  if(!Array.isArray(value)||value.length!==step.items.length)return false;
+  if(step.type==='budget')return value.every(n=>Number.isFinite(n)&&n>=0&&n<=60);
+  if(step.type==='match')return value.every(n=>draft&&n===''||Number.isInteger(n)&&n>=0&&n<step.options.length);
+  return value.every(n=>Number.isInteger(n)&&n>=0&&n<step.items.length)&&new Set(value).size===value.length;
  };
- useEffect(()=>{
-  let game,stopped=false,detachInputs=()=>{};
-  setLoaded(false);
-  import('phaser').then(({default:P})=>{
-   if(stopped)return;
-   class Island extends P.Scene{
-    create(){
-     const {solids}=makeArt(this);this.solids=solids;makeSprites(this);this.add.image(0,0,'sakura-world').setOrigin(0).setDepth(0);
-     this.cameras.main.setBackgroundColor('#237a9c');this.cameras.main.setBounds(0,0,W,H);
-     this.collected=new Set((live.current.worldState?.scrolls||[]).filter(n=>Number.isInteger(n)&&n>=0&&n<5));setCollected(this.collected.size);
-     this.banners=[];this.markers=[];this.npcs=[];
-     places.forEach((p,i)=>{
-      const npc=this.add.sprite(p.x+44,p.y+39,['aiko','kenji','hana','ren','sora'][i]).setScale(1.6).setDepth(15);
-      const shadow=this.add.ellipse(p.x+44,p.y+55,27,9,0x234849,.32).setDepth(10);
-      if(!reduced)this.tweens.add({targets:npc,y:p.y+37,duration:950+i*170,yoyo:true,repeat:-1});
-      const text=this.add.text(p.x,p.y-125-(i===2?93:i===4?47:0),p.short,{fontFamily:'monospace',fontSize:'11px',fontStyle:'bold',color:'#fff4d6',backgroundColor:'#253e4be8',padding:{x:10,y:6}}).setOrigin(.5).setDepth(35);
-      this.banners.push(text);
-      const marker=this.add.text(p.x+44,p.y-9,'!',{fontFamily:'monospace',fontSize:'24px',fontStyle:'bold',color:'#ffda79',stroke:'#6e4439',strokeThickness:4}).setOrigin(.5).setDepth(35);this.markers.push(marker);
-      if(!reduced)this.tweens.add({targets:marker,y:marker.y-5,duration:650,yoyo:true,repeat:-1,delay:i*100});
-      const z=this.add.zone(p.x,p.y-16,174,148).setDepth(20).setInteractive({useHandCursor:true});
-      z.on('pointerover',()=>{text.setColor(p.color);setTip(p.npc+' · '+p.name+'. Click to walk here and begin the challenge.')});
-      z.on('pointerout',()=>text.setColor('#fff4d6'));
-      z.on('pointerdown',pointer=>{pointer.event?.stopPropagation();this.goTo(p.x,p.y+43,i)});
-      this.npcs.push({sprite:npc,shadow});
-     });
-     this.scrollSprites=scrolls.map((s,i)=>{
-      if(this.collected.has(i))return null;
-      const glow=this.add.ellipse(s.x,s.y+8,27,12,0xffd26b,.25).setDepth(9);
-      const sprite=this.add.image(s.x,s.y,'knowledge-scroll').setScale(1.2).setDepth(13);
-      if(!reduced)this.tweens.add({targets:sprite,y:s.y-5,duration:800,yoyo:true,repeat:-1,delay:i*100});
-      return {sprite,glow}
-     });
-     // Living water, koi and floating petals use independent animation layers.
-     if(!reduced){
-      for(let i=0;i<23;i++){
-       const wave=this.add.rectangle(80+i*41,428+(i%3)*7,14+(i%4)*4,2,0xb4f0da,.55).setDepth(2);
-       this.tweens.add({targets:wave,x:wave.x+38,alpha:.1,duration:2100+i*80,yoyo:true,repeat:-1,delay:i*130});
-      }
-      for(let i=0;i<7;i++){
-       const fish=this.add.container(143+i*120,431+(i%2)*9).setDepth(3);fish.add([this.add.ellipse(0,0,11,4,i%2?0xf2c987:0xeea394,.85),this.add.triangle(-7,0,0,-3,0,3,5,0,0xf5daa3,.8)]);
-       this.tweens.add({targets:fish,x:fish.x+39,y:fish.y-3,duration:3800+i*500,yoyo:true,repeat:-1});
-      }
-      for(let i=0;i<34;i++){
-       const p=this.add.rectangle((i*127)%W,(i*97)%H,3+(i%2)*2,3,[0xffc3ce,0xffd5d9,0xf7b4d1][i%3],.8).setDepth(45);
-       this.tweens.add({targets:p,y:p.y+155,x:p.x+84,angle:160,duration:6500+i*170,repeat:-1,delay:i*110,onRepeat:()=>p.setPosition((i*127)%W,(i*97)%H)});
-      }
-      for(let i=0;i<9;i++){
-       const fly=this.add.circle(150+i*95,360+(i%3)*90,2,0xffe9a0,.65).setDepth(44);
-       this.tweens.add({targets:fly,alpha:.05,y:fly.y-20,duration:1000+i*190,yoyo:true,repeat:-1});
-      }
-     }
-     this.pathInk=this.add.graphics().setDepth(8);
-     const saved=live.current.worldState;const sx=Number.isFinite(saved?.x)?saved.x:540,sy=Number.isFinite(saved?.y)?saved.y:613;
-     this.player=this.add.sprite(sx,sy,'explorer').setScale(2.1).setDepth(30);
-     this.playerShadow=this.add.ellipse(sx,sy+19,31,11,0x153d45,.35).setDepth(29);
-     this.playerRing=this.add.ellipse(sx,sy+18,40,17).setStrokeStyle(1,0xf7d689,.7).setDepth(28);
-     this.cameras.main.setZoom(compact?1:1.15);
-     this.cameras.main.startFollow(this.player,true,.09,.09);
-     if(compact){this.cameras.main.stopFollow();this.cameras.main.centerOn(W/2,H/2)}
-     this.lastOverview=compact;this.lastActive=-1;this.lastDone='';this.path=[];this.arrival=null;this.moveTime=0;this.idleAt=0;this.dirty=false;this.lastSave=0;
-     this.keys=this.input.keyboard.createCursorKeys();this.wasd=this.input.keyboard.addKeys('W,A,S,D,E,SPACE');
-     this.input.keyboard.enabled=false;this.input.keyboard.disableGlobalCapture();
-     const canvas=this.game.canvas;canvas.setAttribute('tabindex','0');canvas.setAttribute('aria-label','Sakura island game. Click to walk, use arrows or WASD, and press E near a mentor. Quest buttons are available below the map.');
-     const focus=()=>{const keyboard=this.input?.keyboard;if(!keyboard?.manager)return;keyboard.enabled=true;keyboard.enableGlobalCapture()};
-     const blur=()=>{const keyboard=this.input?.keyboard;if(keyboard?.manager){keyboard.enabled=false;keyboard.disableGlobalCapture();keyboard.resetKeys()}controls.current.x=0;controls.current.y=0};
-     canvas.addEventListener('focus',focus);canvas.addEventListener('blur',blur);
-     detachInputs=()=>{canvas.removeEventListener('focus',focus);canvas.removeEventListener('blur',blur);blur()};
-     this.input.on('pointerdown',(pointer,objects)=>{
-      if(objects.length||compact)return;
-      const p=this.cameras.main.getWorldPoint(pointer.x,pointer.y);
-      if(walkable(p.x,p.y,this.solids))this.goTo(p.x,p.y);
-     });
-     this.input.keyboard.on('keydown',()=>{this.path=[];this.arrival=null});
-     setLoaded(true);
-    }
-    goTo(x,y,arrival=null){
-     if(compact){if(arrival!==null)live.current.onVisit(arrival);return}
-     this.path=findPath(this.player.x,this.player.y,x,y,this.solids);this.arrival=arrival;
-     if(!this.path.length){if(Math.hypot(this.player.x-x,this.player.y-y)<28&&arrival!==null)live.current.onVisit(arrival);else setTip('Choose a clear path, or use the quest buttons below.')}
-     else setTip(arrival!==null?'On the way to '+places[arrival].npc+'…':'Exploring Sakura Island…');
-    }
-    publish(){
-     live.current.onWorldChange?.({x:Math.round(this.player.x),y:Math.round(this.player.y),scrolls:[...this.collected]});this.dirty=false;
-    }
-    update(time,dt){
-     if(!this.player)return;
-     const input=controls.current,ref=live.current;
-     if(!compact&&this.lastOverview!==input.overview){
-      this.lastOverview=input.overview;
-      if(input.overview){this.cameras.main.stopFollow();this.cameras.main.setZoom(Math.min(this.scale.width/W,this.scale.height/H));this.cameras.main.centerOn(W/2,H/2)}
-      else{this.cameras.main.setZoom(1.15);this.cameras.main.startFollow(this.player,true,.09,.09)}
-     }
-     if(input.recenter){this.player.setPosition(540,613);this.path=[];this.arrival=null;input.recenter=false;this.dirty=true}
-     const d=ref.done.join(',');
-     if(ref.active!==this.lastActive||d!==this.lastDone){
-      this.lastActive=ref.active;this.lastDone=d;
-      this.markers.forEach((marker,i)=>marker.setText(ref.done.includes(i)?'✓':i===ref.active?'!':'◆').setColor(ref.done.includes(i)?'#b4ee9a':i===ref.active?'#ffe19b':'#b2cedb'));
-      this.banners.forEach((t,i)=>t.setAlpha(i>ref.done.length ? .72 : 1));
-     }
-     let dx=input.x,dy=input.y;
-     if(this.input.keyboard.enabled&&!compact){
-      if(this.keys.left.isDown||this.wasd.A.isDown)dx=-1;if(this.keys.right.isDown||this.wasd.D.isDown)dx=1;
-      if(this.keys.up.isDown||this.wasd.W.isDown)dy=-1;if(this.keys.down.isDown||this.wasd.S.isDown)dy=1;
-     }
-     const manual=dx!==0||dy!==0;
-     if(manual){this.path=[];this.arrival=null}
-     let moving=manual;
-     if(!manual&&this.path.length){
-      const point=this.path[0],dist=Math.hypot(point.x-this.player.x,point.y-this.player.y);
-      if(dist<5){this.path.shift();if(!this.path.length&&this.arrival!==null){const target=this.arrival;this.arrival=null;this.publish();live.current.onVisit(target)}}
-      else{dx=(point.x-this.player.x)/dist;dy=(point.y-this.player.y)/dist;moving=true}
-     }
-     if(moving&&!compact){
-      const norm=Math.max(1,Math.hypot(dx,dy)),speed=Math.min(dt,40)*.135,nx=this.player.x+dx/norm*speed,ny=this.player.y+dy/norm*speed;
-      if(walkable(nx,this.player.y,this.solids))this.player.x=nx;
-      if(walkable(this.player.x,ny,this.solids))this.player.y=ny;
-      this.moveTime+=dt;this.player.setTexture(Math.floor(this.moveTime/120)%2?'explorer-step':'explorer');if(dx)this.player.setFlipX(dx<0);this.dirty=true;this.idleAt=time;
-     }else this.player.setTexture('explorer');
-     this.playerShadow.setPosition(this.player.x,this.player.y+19);this.playerRing.setPosition(this.player.x,this.player.y+19).setAlpha(reduced?.5:.4+Math.sin(time*.003)*.15);
-     this.pathInk.clear();if(this.path.length){this.path.forEach((p,i)=>{if(i%3===0)this.pathInk.fillStyle(0xffedb5,.65).fillRect(p.x-2,p.y-2,4,4)})}
-     if(!compact){
-      const nearest=places.findIndex(p=>Math.hypot(this.player.x-(p.x+20),this.player.y-(p.y+40))<85);
-      if(nearest!==this.nearest){this.nearest=nearest;setNear(nearest);if(nearest>=0)setTip(places[nearest].npc+' is here. Press E or tap Talk to begin the challenge.')}
-      if((this.input.keyboard.enabled&&(P.Input.Keyboard.JustDown(this.wasd.E)||P.Input.Keyboard.JustDown(this.wasd.SPACE)))||input.interact){input.interact=false;if(nearest>=0){this.publish();live.current.onVisit(nearest)}else setTip('Walk closer to a mentor or choose a quest below.')}
-      scrolls.forEach((s,i)=>{if(!this.collected.has(i)&&Math.hypot(this.player.x-s.x,this.player.y-s.y)<27){
-       this.collected.add(i);setCollected(this.collected.size);setTip('SCROLL '+this.collected.size+'/5 · '+s.text);
-       const item=this.scrollSprites[i];if(item){if(reduced){item.sprite.destroy();item.glow.destroy()}else this.tweens.add({targets:[item.sprite,item.glow],alpha:0,y:item.sprite.y-35,duration:450,onComplete:()=>{item.sprite.destroy();item.glow.destroy()}})}
-       this.publish();
-      }});
-      if(this.dirty&&time-this.idleAt>350&&time-this.lastSave>900){this.publish();this.lastSave=time}
-     }
-    }
-   }
-   controls.current.overview=compact;
-   game=new P.Game({type:P.CANVAS,width:!compact&&narrow?720:W,height:H,parent:host.current,backgroundColor:'#237a9c',pixelArt:true,roundPixels:true,scene:Island,scale:{mode:P.Scale.FIT,autoCenter:P.Scale.CENTER_BOTH},audio:{noAudio:true},banner:false});
-  }).catch(()=>{setError(true);setLoaded(true)});
-  return()=>{stopped=true;detachInputs();if(game)game.destroy(true)};
- },[reduced,compact,narrow]);
- const move=(e,x,y)=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);controls.current.x=x;controls.current.y=y};
- const stop=()=>{controls.current.x=0;controls.current.y=0};
- return <div className={'village-wrap world-v2 '+(compact?'compact ':'')+(maximized?'world-maximized':'')}>
- <div className="map-topline"><span><span className="world-sigil">✦</span> SAKURA ISLAND <small>CHAPTER 05 · IT GUARDIAN</small></span><div className="world-toolbar"><button onClick={()=>{setOverview(!overview);controls.current.overview=!overview}} aria-label={overview?'Follow character':'Show island overview'}><Map size={15}/><span>{overview?'Follow':'Map'}</span></button><button onClick={toggleMusic} aria-label={music?'Mute music':'Enable music'}>{music?<Volume2 size={15}/>:<VolumeX size={15}/>}</button><button onClick={()=>setMaximized(!maximized)} aria-label={maximized?'Exit large game view':'Expand game view'}>{maximized?<Minimize2 size={15}/>:<Maximize2 size={15}/>}</button></div></div>
- <div className="world-stage"><div ref={host} className="village-canvas"/>
- {!loaded&&<div className="world-loading"><span>✦</span>Opening the island…</div>}
- {!compact&&<><div className="world-hud"><span><Compass size={16}/><b>THE VILLAGE AWAKENS</b><small>{done.length}/5 quests complete</small></span><span><BookOpen size={15}/>{collected}/5 scrolls</span></div><div className="world-location"><span className="live-dot"/>{near>=0?places[near].short:'SAKURA COMMONS'}<small>SPRING · LANTERN FESTIVAL</small></div><div className="touch-controls" aria-label="Character movement controls"><button aria-label="Walk up" className="up" onPointerDown={e=>move(e,0,-1)} onPointerUp={stop} onPointerCancel={stop}><ArrowUp size={21}/></button><button aria-label="Walk left" className="left" onPointerDown={e=>move(e,-1,0)} onPointerUp={stop} onPointerCancel={stop}><ArrowLeft size={21}/></button><button aria-label="Walk down" className="down" onPointerDown={e=>move(e,0,1)} onPointerUp={stop} onPointerCancel={stop}><ArrowDown size={21}/></button><button aria-label="Walk right" className="right" onPointerDown={e=>move(e,1,0)} onPointerUp={stop} onPointerCancel={stop}><ArrowRight size={21}/></button></div><button className="world-talk" onClick={()=>{controls.current.interact=true}}>TALK <kbd>E</kbd></button></>}
- </div>
- {error&&<p className="map-fallback">Map unavailable. Use the quest buttons below to continue.</p>}
- <div className="world-dialogue"><span className="portrait-fox" aria-hidden="true"><svg viewBox="0 0 32 32" shapeRendering="crispEdges"><path fill="#70503e" d="M4 2h7v4h10V2h7v19h-4v4H8v-4H4z"/><path fill="#d99960" d="M6 4h3v4h14V4h3v15h-3v4H9v-4H6z"/><path fill="#ffe5ba" d="M7 12h7v8h4v-8h7v7h-4v5H11v-5H7z"/><path fill="#fffbee" d="M8 12h5v4H8zm11 0h5v4h-5z"/><path fill="#253b44" d="M10 13h3v5h-3zm9 0h3v5h-3zm-5 5h4v3h-4z"/><path fill="#efc3a0" d="M8 19h3v2H8zm13 0h3v2h-3z"/><path fill="#b54d48" d="M9 25h14v4H9z"/><path fill="#f4c96f" d="M15 25h3v7h-3z"/><path fill="#337f80" d="M8 29h16v3H8z"/></svg></span><span><b>{near>=0?places[near].npc.toUpperCase():'YOUR FIELD GUIDE'}</b>{tip}</span></div>
- <div className="map-legend"><span><kbd>W A S D</kbd> / arrows to walk</span><span>Click a path to move · E to talk</span><button onClick={()=>{controls.current.recenter=true;setTip('Back at the village entrance. Your saved quests and scrolls are unchanged.')}}>Return to entrance</button></div>
- <div className="map-stops">{places.map((p,i)=><button key={p.name} className={i===active?'current':''} onClick={()=>onVisit(i)} aria-label={'Visit '+p.name}><b>{done.includes(i)?'✓':String(i+1).padStart(2,'0')}</b><span>{p.name}</span></button>)}</div>
- </div>
+ return Object.entries(v.answers).every(([k,a])=>record(a)&&typeof a.correct==='boolean'&&Number.isInteger(a.attempts)&&a.attempts>0&&typeof a.reviewed==='boolean'&&valueOK(k,a.value))&&Object.entries(v.drafts).every(([k,d])=>valueOK(k,d,true))&&Object.entries(v.reflections).every(([k,t])=>/^[0-4]$/.test(k)&&typeof t==='string'&&t.length<=3000)&&['pre','post'].every(k=>Array.isArray(v[k])&&v[k].length<=3&&v[k].every(n=>Number.isInteger(n)&&n>=0&&n<3));
 }
+export function evaluate(step, value) {
+ if(step.type==='choice') return value===step.correct;
+ if(step.type==='match'||step.type==='order') return Array.isArray(value)&&value.length===step.correct.length&&value.every((n,i)=>n===step.correct[i]);
+ if(step.type==='budget') return Array.isArray(value)&&value.length===4&&value.every((n,i)=>Number.isFinite(n)&&n>=step.minimums[i])&&value.reduce((a,b)=>a+b,0)<=95;
+ return false;
+}
+export function statsFor(answers) {
+ const total={availability:55,budget:100,risk:65,trust:40,xp:0};
+ missions.forEach((m,mi)=>m.steps.forEach((s,si)=>{
+  const a=answers[mi+'-'+si];if(!a)return;
+  const d=a.correct?s.delta:[-2,-1,2,-1];
+  ['availability','budget','risk','trust'].forEach((k,i)=>total[k]=Math.max(0,Math.min(100,total[k]+d[i])));
+  total.xp+=a.correct?(a.attempts>1?60:100):20;
+ }));
+ return total;
+}
+export const references=[
+ ['Course source','HZ (2024). Chapter 5: Information Technology Management. Supplied teaching slides, pp. 4–38.',null],
+ ['Motivation','Ryan, R. M., Rigby, C. S., & Przybylski, A. (2006). The motivational pull of video games: A self-determination theory approach. Motivation and Emotion, 30.','https://doi.org/10.1007/s11031-006-9051-8'],
+ ['Learning evidence','Sailer, M., & Homner, L. (2020). The gamification of learning: A meta-analysis. Educational Psychology Review, 32, 77–112.','https://doi.org/10.1007/s10648-019-09498-w'],
+ ['Visual / interaction reference','Google (2021). Doodle Champion Island Games. Exploration and separate challenges; no copied assets.','https://doodles.google/doodle/doodle-champion-island-games-begin/'],
+ ['Progression reference','ConcernedApe. Stardew Valley — About. Community restoration and progression; no copied assets.','https://www.stardewvalley.net/about/']
+];
